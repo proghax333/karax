@@ -68,6 +68,13 @@ const
   selfClosing = {area, base, br, col, embed, hr, img, input,
     link, meta, param, source, track, wbr}
 
+  svgElements* = {animate .. view}
+  mathElements* = {maction .. semantics}
+
+var
+  svgNamespace* = "http://www.w3.org/2000/svg"
+  mathNamespace* = "http://www.w3.org/1998/Math/MathML"
+
 type
   EventKind* {.pure.} = enum ## The events supported by the virtual DOM.
     onclick, ## An element is clicked.
@@ -121,26 +128,22 @@ type
     ontransitionrun,
     ontransitionstart,
 
+    onpaste,
+
     onwheel ## fires when the user rotates a wheel button on a pointing device.
 
-macro buildLookupTables(): untyped =
-  var a = newTree(nnkBracket)
-  for i in low(VNodeKind)..high(VNodeKind):
-    let x = $i
-    let y = if x[0] == '#': x else: toUpperAscii(x)
-    a.add(newCall("kstring", newLit(y)))
-  var e = newTree(nnkBracket)
-  for i in low(EventKind)..high(EventKind):
-    e.add(newCall("kstring", newLit(substr($i, 2))))
+const
+  toTag* = block:
+    var res: array[VNodeKind, kstring]
+    for kind in VNodeKind:
+      res[kind] = kstring($kind)
+    res
 
-  template tmpl(a, e) {.dirty.} =
-    const
-      toTag*: array[VNodeKind, kstring] = a
-      toEventName*: array[EventKind, kstring] = e
-
-  result = getAst tmpl(a, e)
-
-buildLookupTables()
+  toEventName* = block:
+    var res: array[EventKind, kstring]
+    for kind in EventKind:
+      res[kind] = kstring(($kind)[2..^1])
+    res
 
 type
   EventHandler* = proc (ev: Event; target: VNode) {.closure.}
@@ -349,7 +352,7 @@ when kstring is cstring:
   proc len(a: kstring): int =
     # xxx: maybe move where kstring is defined
     # without this, `n.field.len` fails on js (non web) platform
-    if a == nil: 0 else: a.len
+    if a == nil: 0 else: system.len(a)
 
 template toStringAttr(field) =
   if n.field.len > 0:
